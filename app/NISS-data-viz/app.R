@@ -3,9 +3,10 @@ library(tidyverse)
 library(maps)
 library(RColorBrewer)
 library(gt)
+library(gridExtra)
 
-div100 = function(x){
-  y = x/100
+div100 = function(x) {
+  y = x / 100
   return(y)
 }
 
@@ -13,7 +14,7 @@ data = read.csv(
   "https://raw.githubusercontent.com/bbwieland/NISS-contest-viz/main/data/NCES.csv"
 ) %>%
   mutate(State = gsub('.{1}$', '', State)) %>%
-  mutate_if(is.numeric,div100)
+  mutate_if(is.numeric, div100)
 dataStates = data %>% filter(State != "United States" &
                                State != "District of Columbia")
 dataHS = dataStates %>% filter(Degree == "High School")
@@ -26,6 +27,56 @@ usMapHS = usMap %>% left_join(dataHSMap, by = c("region" = "State"))
 usMapBach = usMap %>% left_join(dataBachMap, by = c("region" = "State"))
 usMapTotal = rbind(usMapHS, usMapBach)
 
+usMapWhite = usMapTotal %>% select(long, lat, group, order, region, White, Degree) %>% mutate(Race = "White") %>% rename(Rate = White)
+usMapBlack = usMapTotal %>% select(long, lat, group, order, region, Black, Degree) %>% mutate(Race = "Black") %>% rename(Rate = Black)
+usMapHispanic = usMapTotal %>% select(long, lat, group, order, region, Hispanic, Degree) %>% mutate(Race = "Hispanic") %>% rename(Rate = Hispanic)
+usMapAsian = usMapTotal %>% select(long, lat, group, order, region, Asian, Degree) %>% mutate(Race = "Asian") %>% rename(Rate = Asian)
+usMapMultiracial = usMapTotal %>% select(long, lat, group, order, region, Multiracial, Degree) %>% mutate(Race = "Multiracial") %>% rename(Rate = Multiracial)
+
+usMapByRace = rbind(usMapWhite,
+                    usMapBlack,
+                    usMapHispanic,
+                    usMapAsian,
+                    usMapMultiracial) %>% filter(is.na(Degree) == F) %>%
+  mutate(Degree = factor(Degree, levels = c("High School", "Bachelors")))
+
+longitudinalPlot = ggplot(usMapByRace) +
+  geom_polygon(aes_string(
+    x = "long",
+    y = "lat",
+    group = "group",
+    fill = "Rate"
+  ),
+  color = "black") +
+  theme_bw() +
+  theme(
+    aspect.ratio = 2 / 3,
+    axis.title = element_blank(),
+    axis.line = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    legend.position = "bottom",
+    strip.text = element_text(face = "bold", size = 12),
+    plot.title = element_text(face = "bold", size = 24),
+    plot.subtitle = element_text(face = "italic", size = 18),
+    legend.title = element_text(vjust = 0.75),
+    legend.key.width = unit(2,"cm")
+    
+  ) +
+  scale_fill_distiller(
+    palette = "RdYlGn",
+    direction = 1,
+    na.value = "lightgrey",
+    name = "Percent of Students Who Earned Degree",
+    labels = scales::percent,
+    limits = c(0,1)
+  ) +
+  labs(title = "Data for All Degrees and Racial Categories",
+       subtitle = "View all categories at once to draw broader conclusions") +
+  facet_grid(Degree ~ Race)
+
+
+
 
 
 # Define UI
@@ -33,7 +84,8 @@ ui <- fluidPage(
   titlePanel(title = "NISS Data Visualization (working title)", windowTitle = "NISS Data"),
   mainPanel(tabsetPanel(
     type = "tabs",
-    tabPanel(title = "Plot",
+    
+    tabPanel(title = "Interactive Plot",
              sidebarLayout(
                sidebarPanel(
                  selectInput(
@@ -51,8 +103,12 @@ ui <- fluidPage(
                  sliderInput(
                    "maprange",
                    "Select a percent range for graph fill:",
-                   min = 0, max = 1,
-                   value = c(0.5,1))
+                   min = 0,
+                   max = 1,
+                   value = c(0.5, 1),
+                   step = 0.1,
+                   animate = F
+                 )
                  
                ),
                mainPanel(width = 8,
@@ -63,10 +119,39 @@ ui <- fluidPage(
                            column(width = 6, gt_output("racetabletop")),
                            column(width = 6, gt_output("racetablebottom"))
                          ))
+             )),
+    tabPanel(title = "Overall Plot",
+             plotOutput("longitudinalPlot")),
+    tabPanel(title = "Interactive Uncertainty Plot",
+             sidebarLayout(
+               sidebarPanel(
+                 selectInput(
+                   "raceSE",
+                   "Select a racial category to view standard error for:",
+                   choices = c("WhiteSE", "BlackSE", "HispanicSE", "AsianSE", "MultiracialSE"),
+                   selected = "BlackSE"
+                 ),
+                 selectInput(
+                   "degreetypeSE",
+                   "Select a degree type to view standard error for:",
+                   choices = c("High School", "Bachelors"),
+                   selected = "High School"
+                 ),
+                 sliderInput(
+                   "maprangeSE",
+                   "Select a percent range for graph fill:",
+                   min = 0,
+                   max = 0.15,
+                   value = c(0, 0.09),
+                   step = 0.03,
+                   animate = F
+                 )
+                 
+               ),mainPanel(
+                 plotOutput("raceplotSE")
+               )
              ))
-    
-  ),
-  tabPanel(title = "Data"))
+  ))
 )
 
 # Define server logic
@@ -85,8 +170,8 @@ server <- function(input, output) {
     head(tabledata(), 5) %>% select(State, Overall, !!(input$race)) %>%
       gt() %>%
       tab_header(title = md("**Five Highest Rates**")) %>%
-      fmt_percent(columns = c(2,3),decimals = 1) %>%
-      cols_align(columns = everything(),align = "c") %>%
+      fmt_percent(columns = c(2, 3), decimals = 1) %>%
+      cols_align(columns = everything(), align = "c") %>%
       opt_row_striping()
     
   })
@@ -96,56 +181,137 @@ server <- function(input, output) {
       arrange(get(input$race)) %>%
       gt() %>%
       tab_header(title = md("**Five Lowest Rates**")) %>%
-      fmt_percent(columns = c(2,3),decimals = 1) %>%
-      cols_align(columns = everything(),align = "c") %>%
+      fmt_percent(columns = c(2, 3), decimals = 1) %>%
+      cols_align(columns = everything(), align = "c") %>%
       opt_row_striping()
     
     
   })
   
-
-  raceplot = reactive({ggplot() +
-    geom_polygon(
-      data = plotdata(),
-      aes_string(
-        x = "long",
-        y = "lat",
-        group = "group",
-        fill = input$race
-      ),
-      color = "black"
-    ) +
-    scale_fill_distiller(
-      palette = "RdYlGn",
-      direction = 1,
-      na.value = "lightgrey",
-      name = paste0(
-        "Percentage of\n",
-        input$race,
-        " Students \nWho Earned\n",
-        input$degreetype,
-        " Degree\n"
-      ),
-      limits = input$maprange,
-      labels = scales::percent
-    ) +
-    theme_void() +
-    theme(aspect.ratio = 2 / 3,
-          plot.title = element_text(face = "bold",size = 20),
-          plot.subtitle = element_text(face = "italic",size = 16)) +
-    labs(
-      title = paste(input$degreetype,"Degrees for",input$race,"Students"),
-      subtitle = "Sufficient data not available for states in gray"
-    )})
+  # standard error inputs
   
-  output$raceplot = renderPlot(
-    raceplot()
-  )
+  plotdataSE = reactive({
+    usMapTotal %>% filter(Degree == input$degreetypeSE)
+  })
+  
+  tabledataSE = reactive({
+    dataStates %>% filter(Degree == input$degreetypeSE &
+                            is.na(get(input$raceSE)) == F) %>%
+      arrange(-get(input$raceSE))
+  })
+  
+  tabletopSE = reactive({
+    head(tabledata(), 5) %>% select(State, Overall, !!(input$raceSE)) %>%
+      gt() %>%
+      tab_header(title = md("**Five Highest Std. Error**")) %>%
+      fmt_percent(columns = c(2, 3), decimals = 1) %>%
+      cols_align(columns = everything(), align = "c") %>%
+      opt_row_striping()
+    
+  })
+  
+  tablebottomSE = reactive({
+    tail(tabledata(), 5) %>% select(State, Overall, !!(input$raceSE)) %>%
+      arrange(get(input$race)) %>%
+      gt() %>%
+      tab_header(title = md("**Five Lowest Std. Error**")) %>%
+      fmt_percent(columns = c(2, 3), decimals = 1) %>%
+      cols_align(columns = everything(), align = "c") %>%
+      opt_row_striping()
+    
+    
+  })
+  
+  # plots
+  
+  raceSEclean = reactive({substr(input$raceSE,1,nchar(input$raceSE) - 2)})
+  
+  raceplot = reactive({
+    ggplot() +
+      geom_polygon(
+        data = plotdata(),
+        aes_string(
+          x = "long",
+          y = "lat",
+          group = "group",
+          fill = input$race
+        ),
+        color = "black"
+      ) +
+      scale_fill_distiller(
+        palette = "RdYlGn",
+        direction = 1,
+        na.value = "lightgrey",
+        name = paste0(
+          "Percentage of\n",
+          input$race,
+          " Students \nWho Earned\n",
+          input$degreetype,
+          " Degree\n"
+        ),
+        limits = input$maprange,
+        labels = scales::percent
+      ) +
+      theme_void() +
+      theme(
+        aspect.ratio = 2 / 3,
+        plot.title = element_text(face = "bold", size = 24),
+        plot.subtitle = element_text(face = "italic", size = 18)
+      ) +
+      labs(
+        title = paste(input$degreetype, "Degrees for", input$race, "Students"),
+        subtitle = "Sufficient data not available for states in gray"
+      )
+  })
+  
+  raceplotSE = reactive({
+    ggplot() +
+      geom_polygon(
+        data = plotdataSE(),
+        aes_string(
+          x = "long",
+          y = "lat",
+          group = "group",
+          fill = input$raceSE
+        ),
+        color = "black"
+      ) +
+      scale_fill_distiller(
+        palette = "Purples",
+        direction = 1,
+        na.value = "lightgrey",
+        name = paste0(
+          "Std. Error of\n",
+          raceSEclean(),
+          " Students \nWho Earned\n",
+          input$degreetypeSE,
+          " Degree\n"
+        ),
+        labels = scales::percent,
+        limits = input$maprangeSE
+      ) +
+      theme_void() +
+      theme(
+        aspect.ratio = 2 / 3,
+        plot.title = element_text(face = "bold", size = 24),
+        plot.subtitle = element_text(face = "italic", size = 18)
+      ) +
+      labs(
+        title = paste(input$degreetype, "Degrees for", raceSEclean(), "Students"),
+        subtitle = "Sufficient data not available for states in gray"
+      )
+  })
+  
+  output$raceplot = renderPlot(raceplot())
+  
+  output$raceplotSE = renderPlot(raceplotSE())
   
   output$racetabletop = render_gt(expr = tabletop())
   output$racetablebottom = render_gt(expr = tablebottom())
   
-
+  output$longitudinalPlot = renderPlot(longitudinalPlot)
+  
+  
 }
 
 # Run the application
