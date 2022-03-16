@@ -5,9 +5,9 @@ account: bbwieland
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 5854049
-bundleId: 5685058
+bundleId: 5688585
 url: https://bbwieland.shinyapps.io/NISSVisualization/
-when: 1647320556.12023
-lastSyncTime: 1647320556.12026
+when: 1647379075.78478
+lastSyncTime: 1647379075.7848
 asMultiple: FALSE
 asStatic: FALSE

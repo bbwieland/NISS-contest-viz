@@ -40,6 +40,19 @@ usMapByRace = rbind(usMapWhite,
                     usMapMultiracial) %>% filter(is.na(Degree) == F) %>%
   mutate(Degree = factor(Degree, levels = c("High School", "Bachelors")))
 
+usMapWhiteSE = usMapTotal %>% select(long, lat, group, order, region, WhiteSE, Degree) %>% mutate(Race = "WhiteSE") %>% rename(Rate = WhiteSE)
+usMapBlackSE = usMapTotal %>% select(long, lat, group, order, region, BlackSE, Degree) %>% mutate(Race = "BlackSE") %>% rename(Rate = BlackSE)
+usMapHispanicSE = usMapTotal %>% select(long, lat, group, order, region, HispanicSE, Degree) %>% mutate(Race = "HispanicSE") %>% rename(Rate = HispanicSE)
+usMapAsianSE = usMapTotal %>% select(long, lat, group, order, region, AsianSE, Degree) %>% mutate(Race = "AsianSE") %>% rename(Rate = AsianSE)
+usMapMultiracialSE = usMapTotal %>% select(long, lat, group, order, region, MultiracialSE, Degree) %>% mutate(Race = "MultiracialSE") %>% rename(Rate = MultiracialSE)
+
+usMapByRaceSE = rbind(usMapWhiteSE,
+                    usMapBlackSE,
+                    usMapHispanicSE,
+                    usMapAsianSE,
+                    usMapMultiracialSE) %>% filter(is.na(Degree) == F) %>%
+  mutate(Degree = factor(Degree, levels = c("High School", "Bachelors")))
+
 longitudinalPlot = ggplot(usMapByRace) +
   geom_polygon(aes_string(
     x = "long",
@@ -73,6 +86,41 @@ longitudinalPlot = ggplot(usMapByRace) +
   ) +
   labs(title = "Data for All Degrees and Racial Categories",
        subtitle = "View all categories at once to draw broader conclusions") +
+  facet_grid(Degree ~ Race)
+
+longitudinalPlotSE = ggplot(usMapByRaceSE) +
+  geom_polygon(aes_string(
+    x = "long",
+    y = "lat",
+    group = "group",
+    fill = "Rate"
+  ),
+  color = "black") +
+  theme_bw() +
+  theme(
+    aspect.ratio = 2 / 3,
+    axis.title = element_blank(),
+    axis.line = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    legend.position = "bottom",
+    strip.text = element_text(face = "bold", size = 12),
+    plot.title = element_text(face = "bold", size = 24),
+    plot.subtitle = element_text(face = "italic", size = 18),
+    legend.title = element_text(vjust = 0.75),
+    legend.key.width = unit(2,"cm")
+    
+  ) +
+  scale_fill_distiller(
+    palette = "Purples",
+    direction = 1,
+    na.value = "lightgrey",
+    name = "Standard Error of State Observations",
+    labels = scales::percent,
+    limits = c(0,0.12)
+  ) +
+  labs(title = "Standard Errors for All Degrees and Racial Categories",
+       subtitle = "View all standard errors at once to draw broader conclusions") +
   facet_grid(Degree ~ Race)
 
 
@@ -120,8 +168,6 @@ ui <- fluidPage(
                            column(width = 6, gt_output("racetablebottom"))
                          ))
              )),
-    tabPanel(title = "Overall Plot",
-             plotOutput("longitudinalPlot")),
     tabPanel(title = "Interactive Uncertainty Plot",
              sidebarLayout(
                sidebarPanel(
@@ -150,7 +196,11 @@ ui <- fluidPage(
                ),mainPanel(
                  plotOutput("raceplotSE")
                )
-             ))
+             )),
+    tabPanel(title = "Overall Plot",
+                        plotOutput("longitudinalPlot")),
+    tabPanel(title = "Overall Uncertainty Plot",
+             plotOutput("longitudinalPlotSE"))
   ))
 )
 
@@ -310,6 +360,7 @@ server <- function(input, output) {
   output$racetablebottom = render_gt(expr = tablebottom())
   
   output$longitudinalPlot = renderPlot(longitudinalPlot)
+  output$longitudinalPlotSE = renderPlot(longitudinalPlotSE)
   
   
 }
