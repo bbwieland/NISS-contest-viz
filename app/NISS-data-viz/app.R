@@ -4,6 +4,7 @@ library(maps)
 library(RColorBrewer)
 library(gt)
 library(gridExtra)
+library(shinythemes)
 
 ## Creating non-reactive data, presets, etc. for the Shiny app ----
 
@@ -153,6 +154,10 @@ longitudinalPlotSE = ggplot(usMapByRaceSE) +
 # Define application UI
 
 ui <- fluidPage(
+  # setting theme, CSS, etc.
+  theme = shinytheme("yeti"),
+  
+  # creating page
   titlePanel(title = "NISS Data Visualization (working title)", windowTitle = "NISS Data"),
   mainPanel(
     # use tabsetPanel to create the basic application structure
@@ -230,7 +235,15 @@ ui <- fluidPage(
                    )
                    
                  ),
-                 mainPanel(plotOutput("raceplotSE"))
+                 mainPanel(width = 8,
+                           fluidRow(column(
+                             width = 12, plotOutput("raceplotSE")
+                           )),
+                           fluidRow(
+                             column(width = 6, gt_output("racetabletopSE")),
+                             column(width = 6, gt_output("racetablebottomSE"))
+                             # maybe find a way to extend the mainPanel to fit the full screen?
+                           ))
                )),
       tabPanel(title = "Overall Plot",
                plotOutput("longitudinalPlot")),
@@ -253,9 +266,9 @@ server <- function(input, output) {
   })
   
   tabletop = reactive({
-    head(tabledata(), 5) %>% select(State, Overall,!!(input$race)) %>%
+    head(tabledata(), 3) %>% select(State, Overall,!!(input$race)) %>%
       gt() %>%
-      tab_header(title = md("**Five Highest Rates**")) %>%
+      tab_header(title = md("**Three Highest Rates**")) %>%
       fmt_percent(columns = c(2, 3), decimals = 1) %>%
       cols_align(columns = everything(), align = "c") %>%
       opt_row_striping()
@@ -263,10 +276,10 @@ server <- function(input, output) {
   })
   
   tablebottom = reactive({
-    tail(tabledata(), 5) %>% select(State, Overall,!!(input$race)) %>%
+    tail(tabledata(), 3) %>% select(State, Overall,!!(input$race)) %>%
       arrange(get(input$race)) %>%
       gt() %>%
-      tab_header(title = md("**Five Lowest Rates**")) %>%
+      tab_header(title = md("**Three Lowest Rates**")) %>%
       fmt_percent(columns = c(2, 3), decimals = 1) %>%
       cols_align(columns = everything(), align = "c") %>%
       opt_row_striping()
@@ -287,9 +300,9 @@ server <- function(input, output) {
   })
   
   tabletopSE = reactive({
-    head(tabledata(), 5) %>% select(State, Overall,!!(input$raceSE)) %>%
+    head(tabledataSE(), 3) %>% select(State, OverallSE,!!(input$raceSE)) %>%
       gt() %>%
-      tab_header(title = md("**Five Highest Std. Error**")) %>%
+      tab_header(title = md("**Three Highest Std. Error**")) %>%
       fmt_percent(columns = c(2, 3), decimals = 1) %>%
       cols_align(columns = everything(), align = "c") %>%
       opt_row_striping()
@@ -297,10 +310,10 @@ server <- function(input, output) {
   })
   
   tablebottomSE = reactive({
-    tail(tabledata(), 5) %>% select(State, Overall,!!(input$raceSE)) %>%
-      arrange(get(input$race)) %>%
+    tail(tabledataSE(), 3) %>% select(State, OverallSE,!!(input$raceSE)) %>%
+      arrange(get(input$raceSE)) %>%
       gt() %>%
-      tab_header(title = md("**Five Lowest Std. Error**")) %>%
+      tab_header(title = md("**Three Lowest Std. Error**")) %>%
       fmt_percent(columns = c(2, 3), decimals = 1) %>%
       cols_align(columns = everything(), align = "c") %>%
       opt_row_striping()
@@ -396,6 +409,8 @@ server <- function(input, output) {
   
   output$racetabletop = render_gt(expr = tabletop())
   output$racetablebottom = render_gt(expr = tablebottom())
+  output$racetabletopSE = render_gt(expr = tabletopSE())
+  output$racetablebottomSE = render_gt(expr = tablebottomSE())
   
   output$longitudinalPlot = renderPlot(longitudinalPlot)
   output$longitudinalPlotSE = renderPlot(longitudinalPlotSE)
