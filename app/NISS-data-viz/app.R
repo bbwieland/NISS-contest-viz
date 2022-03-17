@@ -149,9 +149,7 @@ longitudinalPlotSE = ggplot(usMapByRaceSE) +
        subtitle = "View all standard errors at once to draw broader conclusions") +
   facet_grid(Degree ~ Race)
 
-# Programming the actual Shiny application! ----
-
-# Define application UI
+# Defining application UI ----
 
 ui <- fluidPage(
   # setting theme, CSS, etc.
@@ -186,17 +184,18 @@ ui <- fluidPage(
                      "Select a percent range for graph fill:",
                      min = 0,
                      max = 1,
-                     value = c(0.5, 1),
+                     value = c(0.7, 1),
                      step = 0.1,
                      animate = F
-                   )
+                   ),
+                   textOutput("suggestedrange")
                    # note: a lot of thought went into this third sliderInput!
-                   # I strongly considered just allowing the scale of the fill to vary. 
+                   # I strongly considered just allowing the scale of the fill to vary.
                    # However, while that made for better intraracial visualization of how
                    # degree numbers were affected by state, it made for worse interracial
                    # comparisons across multiple groups. However, given the facet wrapped
                    # plots, I'm considering returning to the old scales which were allowed
-                   # to vary and just removing this slider altogther. 
+                   # to vary and just removing this slider altogther.
                    
                  ),
                  mainPanel(width = 8,
@@ -232,7 +231,8 @@ ui <- fluidPage(
                      value = c(0, 0.09),
                      step = 0.03,
                      animate = F
-                   )
+                   ),
+                   textOutput("suggestedrangeSE")
                    
                  ),
                  mainPanel(width = 8,
@@ -253,11 +253,13 @@ ui <- fluidPage(
   )
 )
 
-# Define server logic
 server <- function(input, output) {
+  
   plotdata = reactive({
     usMapTotal %>% filter(Degree == input$degreetype)
   })
+  
+  # getting percentage data for tables ----
   
   tabledata = reactive({
     dataStates %>% filter(Degree == input$degreetype &
@@ -265,8 +267,23 @@ server <- function(input, output) {
       arrange(-get(input$race))
   })
   
+  # computing outputs for "Suggested Range" output
+  mintablerange = reactive({
+    floor(min(tabledata()[, input$race] * 10))
+  })
+  maxtablerange = reactive({
+    ceiling(max(tabledata()[, input$race] * 10))
+  })
+  
+  suggestedrange = reactive({
+    paste("Suggested range:",
+          mintablerange() / 10,
+          "to",
+          maxtablerange() / 10)
+  })
+  
   tabletop = reactive({
-    head(tabledata(), 3) %>% select(State, Overall,!!(input$race)) %>%
+    head(tabledata(), 3) %>% select(State, Overall, !!(input$race)) %>%
       gt() %>%
       tab_header(title = md("**Three Highest Rates**")) %>%
       fmt_percent(columns = c(2, 3), decimals = 1) %>%
@@ -276,7 +293,7 @@ server <- function(input, output) {
   })
   
   tablebottom = reactive({
-    tail(tabledata(), 3) %>% select(State, Overall,!!(input$race)) %>%
+    tail(tabledata(), 3) %>% select(State, Overall, !!(input$race)) %>%
       arrange(get(input$race)) %>%
       gt() %>%
       tab_header(title = md("**Three Lowest Rates**")) %>%
@@ -287,7 +304,7 @@ server <- function(input, output) {
     
   })
   
-  # standard error inputs
+  # getting standard error data for tables ----
   
   plotdataSE = reactive({
     usMapTotal %>% filter(Degree == input$degreetypeSE)
@@ -299,8 +316,22 @@ server <- function(input, output) {
       arrange(-get(input$raceSE))
   })
   
+  mintablerangeSE = reactive({
+    floor(min(tabledataSE()[, input$raceSE] * 33))
+  })
+  maxtablerangeSE = reactive({
+    ceiling(max(tabledataSE()[, input$raceSE] * 33))
+  })
+  
+  suggestedrangeSE = reactive({
+    paste("Suggested range:",
+          mintablerangeSE() / 33,
+          "to",
+          round(maxtablerangeSE() / 33, 2))
+  })
+  
   tabletopSE = reactive({
-    head(tabledataSE(), 3) %>% select(State, OverallSE,!!(input$raceSE)) %>%
+    head(tabledataSE(), 3) %>% select(State, OverallSE, !!(input$raceSE)) %>%
       gt() %>%
       tab_header(title = md("**Three Highest Std. Error**")) %>%
       fmt_percent(columns = c(2, 3), decimals = 1) %>%
@@ -310,7 +341,7 @@ server <- function(input, output) {
   })
   
   tablebottomSE = reactive({
-    tail(tabledataSE(), 3) %>% select(State, OverallSE,!!(input$raceSE)) %>%
+    tail(tabledataSE(), 3) %>% select(State, OverallSE, !!(input$raceSE)) %>%
       arrange(get(input$raceSE)) %>%
       gt() %>%
       tab_header(title = md("**Three Lowest Std. Error**")) %>%
@@ -321,11 +352,11 @@ server <- function(input, output) {
     
   })
   
-  # plots
-  
   raceSEclean = reactive({
     substr(input$raceSE, 1, nchar(input$raceSE) - 2)
   })
+  
+  ## rendering map plots ----
   
   raceplot = reactive({
     ggplot() +
@@ -350,7 +381,7 @@ server <- function(input, output) {
           input$degreetype,
           " Degree\n"
         ),
-        limits = input$maprange,
+        limits = c(input$maprange),
         labels = scales::percent
       ) +
       theme_void() +
@@ -403,12 +434,17 @@ server <- function(input, output) {
       )
   })
   
+  # reactive outputs ----
   output$raceplot = renderPlot(raceplot())
   
   output$raceplotSE = renderPlot(raceplotSE())
   
   output$racetabletop = render_gt(expr = tabletop())
   output$racetablebottom = render_gt(expr = tablebottom())
+  
+  output$suggestedrange = renderText(expr = suggestedrange())
+  output$suggestedrangeSE = renderText(expr = suggestedrangeSE())
+  
   output$racetabletopSE = render_gt(expr = tabletopSE())
   output$racetablebottomSE = render_gt(expr = tablebottomSE())
   
@@ -416,7 +452,9 @@ server <- function(input, output) {
   output$longitudinalPlotSE = renderPlot(longitudinalPlotSE)
   
   
+  
+  
 }
 
-# Run the application
+# Run the application ----
 shinyApp(ui = ui, server = server)
