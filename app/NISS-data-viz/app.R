@@ -198,7 +198,7 @@ ui <- fluidPage(
                    # to vary and just removing this slider altogther.
                    
                  ),
-                 mainPanel(width = 8,
+                 mainPanel(width = 12,
                            fluidRow(column(
                              width = 12, plotOutput("raceplot")
                            )),
