@@ -11,12 +11,17 @@ library(RColorBrewer)
 
 # importing the raw NCES data from Git repository
 
+div100 = function(x) {
+  y = x / 100
+  return(y)
+}
 data = read.csv(
   "https://raw.githubusercontent.com/bbwieland/NISS-contest-viz/main/data/NCES.csv"
 ) %>%
   mutate(State = gsub('.{1}$', '', State))
 
 # cleaning the data
+
 
 dataStates = data %>% filter(State != "United States" &
                                State != "District of Columbia") %>%
@@ -71,7 +76,11 @@ dataForBarplot = rbind(dataOverall,
     Race,
     levels = c("Overall", "White", "Black", "Hispanic", "Asian", "Multiracial")
   )) %>%
-  mutate(Degree = factor(Degree, levels = c("HighSchool", "Bachelors")))
+  mutate(Degree = factor(Degree, levels = c("HighSchool", "Bachelors"))) %>%
+  group_by(Race, Degree) %>%
+  mutate_if(is.numeric, div100)
+
+
 
 dataSummaryForBarplot = dataForBarplot %>%
   group_by(Race, Degree) %>%
@@ -106,20 +115,24 @@ ggplot(data = dataSummaryForBarplot, aes(x = Race, y = MeanPct, group = Degree))
 
 # Define UI for application that draws a histogram
 
-ui <- fluidPage(tags$head(tags$style(
-  HTML(".leaflet-container { background: white; }")
-)),
-fluidRow(column(
-  width = 12, htmlOutput("textplot", height = "200px")
-)),
-fluidRow(column(
-  width = 6,
-  plotOutput("barplot", click = "bar_click", height = "450px")
-),
-column(
-  width = 6,
-  leafletOutput("leafletmap", height = "450px")
-)))
+ui <- fluidPage(
+  # textOutput("test"),
+  tags$head(tags$style(
+    HTML(".leaflet-container { background: white; }")
+  )),
+  fluidRow(column(
+    width = 12, htmlOutput("textplot", height = "200px")
+  )),
+  fluidRow(column(
+    width = 6,
+    plotOutput("barplot", click = "bar_click", height = "450px")
+  ),
+  column(
+    width = 6,
+    leafletOutput("leafletmap", height = "450px")
+  )),
+  fluidRow(column(width = 12, plotOutput("ecdfplot")))
+)
 
 # Define server logic required to draw a histogram
 server <- function(input, output) {
@@ -163,44 +176,53 @@ server <- function(input, output) {
     )
   })
   
+  eventReactive(input$bar_click, {
+    plotRace = race()
+  }, ignoreNULL = T)
+  eventReactive(input$bar_click, {
+    plotDegree = degree()
+  }, ignoreNULL = T)
   
   
   
-  title <- tags$div(tag.map.title, HTML(paste(
-    "Graduation Statistics for Selected Rates"
-  )))
+  
+  
+  title <- tags$div(tag.map.title, HTML(paste("Graduation Statistics for Selected Bar")))
   
   output$textplot = renderText({
-    if (is.numeric(input$bar_click$x) == T) {
-      paste(
-        "<style> h3 {text-align: center; font-weight: normal;} p {color:",
-        ifelse(degree() == "HighSchool", "tomato", "blue"),
-        "; display:inline; font-weight: bold;}</style>",
-        "<h3>Now visualizing<p>",
-        ifelse(
-          degree() == "HighSchool",
-          "High School Degrees",
-          "Bachelor's Degrees"
-        ),
-        "</p> for <p>",
-        race(),
-        "</p> students on the map.</h3>"
-      )
-    }
-    
-    else{
-      paste(
-        "<style> h3 {text-align: center; font-weight: normal;} p {color:",
-        ifelse(degree() == "HighSchool", "tomato", "blue"),
-        "; display:inline; font-weight: bold;}</style>",
-        "<h3>Click on one of the bar chart's columns to visualize state-by-state geographic data for that category.</h3>"
-      )
-    }
+    paste(
+      "<style> h4 {text-align: center; font-size: 30px; font-weight: bold;}></style>",
+      "<h4> Graduation Rates by State, Race, and Degree Type </h4>",
+      if (is.numeric(input$bar_click$x) == T) {
+        paste(
+          "<style> h3 {text-align: center; font-weight: normal;} p {color:",
+          ifelse(degree() == "HighSchool", "tomato", "blue"),
+          "; display:inline; font-weight: bold;}</style>",
+          "<h3>Now visualizing<p>",
+          ifelse(
+            degree() == "HighSchool",
+            "High School Degrees",
+            "Bachelor's Degrees"
+          ),
+          "</p> for <p>",
+          race(),
+          "</p> students on the map.</h3>",
+          "<h3>Remember, you can click on any state to visualize its percentile plots for each individual category!</h3>"
+          
+        )
+      }
+      
+      else{
+        paste(
+          "<style> h3 {text-align: center; font-weight: normal;} p {display:inline; font-weight: bold;}</style>",
+          "<h3>Click on one of the bar chart's columns to visualize state-by-state geographic data for that category.</h3>",
+          "<h3>Click a state on the map to visualize its percentile plots for each individual category.</h3>"
+        )
+      }
+    )
   })
   
   
-  
-  output$vals = renderText(c(degree(), race()))
   
   dataForBarplotFiltered = reactive({
     dataForBarplot %>% filter(Race %in% race() & Degree %in% degree())
@@ -223,9 +245,11 @@ server <- function(input, output) {
                  color = "blue",
                  linetype = "dashed") +
       theme_minimal() +
-      labs(title = "Graduation Rates for All Demographics",
-           y = "Percentage Graduating",
-           x = "") +
+      labs(
+        title = paste("Graduation Rates for All Demographics"),
+        y = "Percentage Graduating",
+        x = ""
+      ) +
       theme(
         legend.position = "right",
         plot.title = element_text(
@@ -274,6 +298,7 @@ server <- function(input, output) {
       clearControls() %>%
       addPolygons(
         data = states,
+        layerId = states@data$name,
         fillColor = ~ pal(states@data[, paste0(race(), degree())]),
         weight = 2,
         opacity = 1,
@@ -309,6 +334,79 @@ server <- function(input, output) {
   
   output$table <- renderTable({
     expr = dataForBarplotFiltered()
+  })
+  
+  # output$test = renderPrint({
+  #   forprint = input$leafletmap_shape_click$id
+  #   print(forprint)
+  # })
+  #
+  selectedState = reactive(input$leafletmap_shape_click$id)
+  
+  observeEvent(input$leafletmap_shape_click, {
+    selectedState = input$leafletmap_shape_click$id
+  })
+  
+  degree.labs = c("High School", "Bachelors")
+  names(degree.labs) = c("HighSchool", "Bachelors")
+  
+  stateFilteredData = reactive({
+    if (!is.null(selectedState())) {
+      dataForBarplot %>% filter(State == selectedState()) %>%
+        group_by(Race, Degree) %>%
+        summarise(pct = Percent)
+    }
+    else {
+      dataForBarplot %>% filter(State == "Kansas") %>%
+        group_by(Race, Degree) %>%
+        summarise(pct = Percent)
+    }
+  })
+  
+  output$ecdfplot <- renderPlot({
+    ggplot(dataForBarplot, aes(x = Percent)) +
+      stat_ecdf(
+        geom = "area",
+        color = "black",
+        alpha = 0.6,
+        aes(fill = Degree)
+      ) +
+      scale_y_continuous(labels = scales::percent_format(accuracy = 1L)) +
+      scale_x_continuous(labels = scales::percent_format(accuracy = 1L)) +
+      # geom_vline(data = stateFilteredData(), aes(xintercept = pct), size = 1) +
+      geom_segment(data = stateFilteredData(),aes(x = pct, xend = pct, y = 0, yend = 1),size = 1.5) +
+      facet_wrap(
+        ~ Degree + Race,
+        scales = "free",
+        nrow = 2,
+        labeller = labeller(Degree = degree.labs)
+      ) +
+      theme_minimal() +
+      scale_fill_manual(values = c("red", "blue")) +
+      
+      labs(
+        title = paste0(
+          "How Does Your Selected State, ",
+          ifelse(is.null(selectedState()) == T, "Kansas", selectedState()),
+          ", Stack Up?"
+        ),
+        x = "Percent of Students Graduating",
+        y = "State Percentile"
+      ) +
+      theme(
+        legend.position = "none",
+        plot.title = element_text(
+          face = "bold",
+          size = 24,
+          hjust = 0,
+          vjust = 0
+        ),
+        axis.title = element_text(size = 18),
+        
+        axis.text = element_text(size = 14, face = "italic"),
+        strip.text.x = element_text(size = 14, face = "italic")
+        
+      )
   })
   
 }
