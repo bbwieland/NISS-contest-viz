@@ -138,19 +138,50 @@ ui <- fluidPage(
 server <- function(input, output) {
   tag.map.title <- tags$style(
     HTML(
-      "
-  .leaflet-control.map-title {
-    transform: translate(-50%,20%);
-    left: 30%;
-    text-align: center;
-    padding-left: 10px;
-    padding-right: 10px;
-    padding-top: -30px;
-    background: rgba(255,255,255,0.8);
-    font-weight: bold;
-    font-size: 24px;
-  }
-"
+      #       "
+      #   .leaflet-control.map-title {
+      #     transform: translate(-15%,0%);
+      #     text-align: center;
+      #     padding-left: 10px;
+      #     padding-right: 10px;
+      #     padding-top: -30px;
+      #     background: rgba(255,255,255,0.8);
+      #     font-weight: bold;
+      #     font-size: 24px;
+      #   }
+      # "
+      ".leaflet-control.map-title {
+      transform:translate(0,-40%);
+      text-align: center;
+      background: rgba(255,255,255,0.8);
+      font-weight: bold;
+      font-size: 24px;
+      }"
+    )
+  )
+  
+  tag.map.subtitle <- tags$style(
+    HTML(
+      #       "
+      #   .leaflet-control.map-title {
+      #     transform: translate(-15%,0%);
+      #     text-align: center;
+      #     padding-left: 10px;
+      #     padding-right: 10px;
+      #     padding-top: -30px;
+      #     background: rgba(255,255,255,0.8);
+      #     font-weight: bold;
+      #     font-size: 24px;
+      #   }
+      # "
+      ".leaflet-control.map-subtitle {
+            transform:translate(0,-120%);
+
+      text-align: center;
+      background: rgba(255,255,255,0.8);
+      font-style: italic;
+      font-size: 16px;
+      }"
     )
   )
   
@@ -187,40 +218,71 @@ server <- function(input, output) {
   
   
   
-  title <- tags$div(tag.map.title, HTML(paste("Graduation Statistics for Selected Bar")))
+  title <-
+    reactive({
+      tags$div(tag.map.title, HTML(paste(# ifelse(degree() == "HighSchool", "High School", "Bachelors"),
+        # "Statistics for",
+        # race(),
+        # "Students"
+        if (is_empty(degree()) == T) {
+          "Select a bar on the left to fill the map."
+        }
+        
+        else {
+          ifelse(
+            degree() == "HighSchool",
+            paste("High School Degree Statistics for", race(), "Students"),
+            paste("Bachelor's Degree Statistics for", race(), "Students")
+          )
+        })))
+    })
+  
+  subtitle <-
+    tags$div(
+      tag.map.subtitle,
+      HTML(
+        "Click on a state to view its individual statistics in the grid below."
+      )
+    )
   
   output$textplot = renderText({
     paste(
-      "<style> h4 {text-align: center; font-size: 30px; font-weight: bold;}></style>",
-      "<h4> Graduation Rates by State, Race, and Degree Type </h4>",
-      if (is.numeric(input$bar_click$x) == T) {
-        paste(
-          "<style> h3 {text-align: center; font-weight: normal;} p {color:",
-          ifelse(degree() == "HighSchool", "tomato", "blue"),
-          "; display:inline; font-weight: bold;}</style>",
-          "<h3>Now visualizing<p>",
-          ifelse(
-            degree() == "HighSchool",
-            "High School Degrees",
-            "Bachelor's Degrees"
-          ),
-          "</p> for <p>",
-          race(),
-          "</p> students on the map.</h3>",
-          "<h3>Remember, you can click on any state to visualize its percentile plots for each individual category!</h3>"
-          
-        )
-      }
-      
-      else{
-        paste(
-          "<style> h3 {text-align: center; font-weight: normal;} p {display:inline; font-weight: bold;}</style>",
-          "<h3>Click on one of the bar chart's columns to visualize state-by-state geographic data for that category.</h3>",
-          "<h3>Click a state on the map to visualize its percentile plots for each individual category.</h3>"
-        )
-      }
+      "<style> h4 {text-align: center; font-size: 36px; font-weight: bold;}></style>",
+      "<h4> Graduation Rates by State, Race, and Degree Type </h4>"
     )
   })
+  # output$textplot = renderText({
+  #   paste(
+  #     "<style> h4 {text-align: center; font-size: 30px; font-weight: bold;}></style>",
+  #     "<h4> Graduation Rates by State, Race, and Degree Type </h4>",
+  #     if (is.numeric(input$bar_click$x) == T) {
+  #       paste(
+  #         "<style> h3 {text-align: center; font-weight: normal;} p {color:",
+  #         ifelse(degree() == "HighSchool", "tomato", "blue"),
+  #         "; display:inline; font-weight: bold;}</style>",
+  #         "<h3>Now visualizing<p>",
+  #         ifelse(
+  #           degree() == "HighSchool",
+  #           "High School Degrees",
+  #           "Bachelor's Degrees"
+  #         ),
+  #         "</p> for <p>",
+  #         race(),
+  #         "</p> students on the map.</h3>",
+  #         "<h3>Remember, you can click on any state to visualize its percentile plots for each individual category!</h3>"
+  #
+  #       )
+  #     }
+  #
+  #     else{
+  #       paste(
+  #         "<style> h3 {text-align: center; font-weight: normal;} p {display:inline; font-weight: bold;}</style>",
+  #         "<h3>Click on one of the bar chart's columns to visualize state-by-state geographic data for that category.</h3>",
+  #         "<h3>Click a state on the map to visualize its percentile plots for each individual category.</h3>"
+  #       )
+  #     }
+  #   )
+  # })
   
   
   
@@ -235,28 +297,56 @@ server <- function(input, output) {
         position = "dodge",
         aes(fill = Degree),
         color = "black",
-        alpha = 0.6
+        alpha = 0.8
       ) +
-      scale_fill_manual(values = c("red", "blue")) +
-      geom_hline(yintercept = overallMeanHS,
-                 color = "red",
-                 linetype = "dashed") +
-      geom_hline(yintercept = overallMeanBach,
-                 color = "blue",
-                 linetype = "dashed") +
+      scale_fill_manual(values = c("cadetblue2", "lightgreen")) +
+      geom_hline(
+        yintercept = overallMeanHS,
+        color = "cyan3",
+        linetype = "dashed",
+        size = 1.5
+      ) +
+      geom_hline(
+        yintercept = overallMeanBach,
+        color = "forestgreen",
+        linetype = "dashed",
+        size = 1.5
+      ) +
+      annotate(
+        "label",
+        x = 1.05,
+        y = overallMeanHS,
+        label = "Overall Mean\n(High School)",
+        color = "cyan4",
+        vjust = 1.2
+      ) +
+      annotate(
+        "label",
+        x = 1.05,
+        y = overallMeanBach,
+        label = "Overall Mean\n(Bachelor's)",
+        color = "forestgreen",
+        vjust = -0.2
+      ) +
+      
       theme_minimal() +
       labs(
-        title = paste("Graduation Rates for All Demographics"),
+        title = paste("Overall Graduation Rates for All Demographics"),
         y = "Percentage Graduating",
-        x = ""
+        x = "",
+        subtitle = "Click on a bar to show state-level data for selected demographic and degree type."
       ) +
       theme(
         legend.position = "right",
         plot.title = element_text(
           face = "bold",
           size = 24,
-          hjust = 0.5,
-          vjust = -3
+          hjust = 0,
+        ),
+        plot.subtitle = element_text(
+          face = "italic",
+          size = 16,
+          hjust = 0
         ),
         axis.title = element_text(size = 18),
         legend.text = element_text(size = 14),
@@ -267,19 +357,11 @@ server <- function(input, output) {
   })
   
   output$leafletmap = renderLeaflet({
-    leaflet(states) %>%
+    leaflet(states, options = leafletOptions(zoomControl = F)) %>%
       setView(-96, 40.8, 4)
   })
   
   observe({
-    pal <-
-      (colorBin(
-        "PiYG",
-        domain = states@data[, paste0(race(), degree())],
-        bins = 7,
-        na.color = "black"
-      ))
-    
     labels = lapply(seq(nrow(states@data)), function(i) {
       paste0(
         '<strong>',
@@ -299,7 +381,40 @@ server <- function(input, output) {
       addPolygons(
         data = states,
         layerId = states@data$name,
-        fillColor = ~ pal(states@data[, paste0(race(), degree())]),
+        fillColor = ~ colorBin(
+          palette = if (is_empty(degree()) == T) {
+            "PiYG"
+          } else {
+            if (nchar(degree()) == 10) {
+              "BrBG"
+            }
+            else{
+              "PiYG"
+            }
+          },
+          domain = if (is_empty(degree()) == T) {
+            c(0, 100)
+          } else {
+            if (nchar(degree()) == 10) {
+              c(0, 75)
+            }
+            else{
+              c(50, 100)
+            }
+          },
+          bins = if (is_empty(degree()) == T) {
+            c(0, 10, 20, 30, 40, 50, 60, 70, 80)
+          } else {
+            if (nchar(degree()) == 10) {
+              c(55, 60, 65, 70, 75, 80, 85, 90, 95, 100)
+            }
+            else{
+              c(0, 10, 20, 30, 40, 50, 60, 70, 80)
+            }
+          },
+          
+          na.color = "black"
+        )(states@data[, paste0(race(), degree())]),
         weight = 2,
         opacity = 1,
         color = "black",
@@ -320,14 +435,48 @@ server <- function(input, output) {
         )
       ) %>%
       addLegend(
-        pal = pal,
+        colorBin(
+          palette = if (is_empty(degree()) == T) {
+            "PiYG"
+          } else {
+            if (nchar(degree()) == 10) {
+              "BrBG"
+            }
+            else{
+              "PiYG"
+            }
+          },
+          domain = if (is_empty(degree()) == T) {
+            c(0, 100)
+          } else {
+            if (nchar(degree()) == 10) {
+              c(0, 75)
+            }
+            else{
+              c(50, 100)
+            }
+          },
+          bins = if (is_empty(degree()) == T) {
+            c(0, 10, 20, 30, 40, 50, 60, 70, 80)
+          } else {
+            if (nchar(degree()) == 10) {
+              c(55, 60, 65, 70, 75, 80, 85, 90, 95, 100)
+            }
+            else{
+              c(0, 10, 20, 30, 40, 50, 60, 70, 80)
+            }
+          },
+          na.color = "black"
+        ),
         values = states@data[, paste0(race(), degree())],
+        #states@data[, paste0(race(), degree())],
         opacity = 0.7,
         title = "Percent Graduating",
         position = "bottomright",
         na.label = "No Data"
       )  %>%
-      addControl(title, position = "topright", className = "map-title")
+      addControl(title(), position = "topleft", className = "map-title") %>%
+      addControl(subtitle, position = "topleft", className = "map-subtitle")
     
   })
   
@@ -359,7 +508,7 @@ server <- function(input, output) {
     else {
       dataForBarplot %>% filter(State == "Kansas") %>%
         group_by(Race, Degree) %>%
-        summarise(pct = Percent)
+        summarise(pct = Percent, se = StdError)
     }
   })
   
@@ -368,13 +517,20 @@ server <- function(input, output) {
       stat_ecdf(
         geom = "area",
         color = "black",
-        alpha = 0.6,
+        alpha = 0.8,
         aes(fill = Degree)
       ) +
       scale_y_continuous(labels = scales::percent_format(accuracy = 1L)) +
       scale_x_continuous(labels = scales::percent_format(accuracy = 1L)) +
       # geom_vline(data = stateFilteredData(), aes(xintercept = pct), size = 1) +
-      geom_segment(data = stateFilteredData(),aes(x = pct, xend = pct, y = 0, yend = 1),size = 1.5) +
+      geom_segment(data = stateFilteredData(),
+                   aes(
+                     x = pct,
+                     xend = pct,
+                     y = 0,
+                     yend = 1
+                   ),
+                   size = 1.5) +
       facet_wrap(
         ~ Degree + Race,
         scales = "free",
@@ -382,7 +538,7 @@ server <- function(input, output) {
         labeller = labeller(Degree = degree.labs)
       ) +
       theme_minimal() +
-      scale_fill_manual(values = c("red", "blue")) +
+      scale_fill_manual(values = c("cadetblue2", "lightgreen")) +
       
       labs(
         title = paste0(
@@ -391,7 +547,8 @@ server <- function(input, output) {
           ", Stack Up?"
         ),
         x = "Percent of Students Graduating",
-        y = "State Percentile"
+        y = "State Percentile",
+        subtitle = "These plots present a state's raw graduation rate for each statistic on the x-axis and its percentile rank on the y-axis. Use the interactive map to select a new state."
       ) +
       theme(
         legend.position = "none",
@@ -399,6 +556,11 @@ server <- function(input, output) {
           face = "bold",
           size = 24,
           hjust = 0,
+          vjust = 0
+        ),
+        plot.subtitle = element_text(
+          face = "italic",
+          size = 16,
           vjust = 0
         ),
         axis.title = element_text(size = 18),
