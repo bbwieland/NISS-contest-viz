@@ -120,6 +120,7 @@ ui <- fluidPage(
   tags$head(tags$style(
     HTML(".leaflet-container { background: white; }")
   )),
+  titlePanel(title = "", windowTitle = "NISS Visualization"),
   fluidRow(column(
     width = 12, htmlOutput("textplot", height = "200px")
   )),
@@ -225,7 +226,7 @@ server <- function(input, output) {
         # race(),
         # "Students"
         if (is_empty(degree()) == T) {
-          "Select a bar on the left to fill the map."
+          "Overall Graduation Rates for High Schoolers by State"
         }
         
         else {
@@ -241,14 +242,16 @@ server <- function(input, output) {
     tags$div(
       tag.map.subtitle,
       HTML(
-        "Click on a state to view its individual statistics in the grid below."
+        "Click on a state to view its individual statistics. Do any regions have unusual degree rates?"
       )
     )
   
   output$textplot = renderText({
     paste(
-      "<style> h4 {text-align: center; font-size: 36px; font-weight: bold;}></style>",
-      "<h4> Graduation Rates by State, Race, and Degree Type </h4>"
+      "<style> h4 {text-align: left; padding-left: 4%; font-size: 36px; font-weight: bold;} </style>",
+      "<style> h3 {text-align: left; padding-left: 4%; padding-bottom: 2%; font-size: 24px; font-weight: normal;} </style>",
+      "<h4> Graduation Rates by State, Race, and Degree Type </h4>",
+      "<h3>In 2021, the National Center for Education Statistics published data on nationwide high school and college graduation rates. <br>This information can be useful in examining educational disparities across regional and demographic boundaries. </h3>"
     )
   })
   # output$textplot = renderText({
@@ -290,6 +293,10 @@ server <- function(input, output) {
     dataForBarplot %>% filter(Race %in% race() & Degree %in% degree())
   })
   
+  # binsHS
+  # binsBach
+  binsHS = c(100, 95, 90, 85, 80, 75, 70, 65, 60, 55)
+  binsBach = c(80, 70, 60, 50, 40, 30, 20, 10)
   
   output$barplot = renderPlot({
     ggplot(data = dataSummaryForBarplot, aes(x = Race, y = MeanPct, group = Degree)) +
@@ -334,7 +341,7 @@ server <- function(input, output) {
         title = paste("Overall Graduation Rates for All Demographics"),
         y = "Percentage Graduating",
         x = "",
-        subtitle = "Click on a bar to show state-level data for selected demographic and degree type."
+        subtitle = "Click on a bar to show state-level data for selected demographic and degree type.\nYou can also compare each bar's height to the category's overall mean line."
       ) +
       theme(
         legend.position = "right",
@@ -363,17 +370,33 @@ server <- function(input, output) {
   
   observe({
     labels = lapply(seq(nrow(states@data)), function(i) {
-      paste0(
-        '<strong>',
-        states@data[i, "name"],
-        '</strong><br>',
-        "Grad. Rate: ",
-        round(states@data[i, paste0(race(), degree())], digits = 1),
-        '<br><i>',
-        "Std. Error: ±",
-        round(as.numeric(states@data[i, paste0(race(), "SE", degree())]), digits = 2),
-        '</i>'
-      )
+      if (is_empty(degree())) {
+        paste0(
+          '<strong>',
+          states@data[i, "name"],
+          '</strong><br>',
+          "Grad. Rate: ",
+          round(states@data[i, "OverallHighSchool"], digits = 1),
+          '<br><i>',
+          "Std. Error: ±",
+          round(as.numeric(states@data[i, "OverallSEHighSchool"]), digits = 2),
+          '</i>'
+        )
+      }
+      else {
+        paste0(
+          '<strong>',
+          states@data[i, "name"],
+          '</strong><br>',
+          "Grad. Rate: ",
+          round(states@data[i, paste0(race(), degree())], digits = 1),
+          '<br><i>',
+          "Std. Error: ±",
+          round(as.numeric(states@data[i, paste0(race(), "SE", degree())]), digits = 2),
+          '</i>'
+        )
+      }
+      
     })
     
     leafletProxy("leafletmap") %>%
@@ -381,40 +404,52 @@ server <- function(input, output) {
       addPolygons(
         data = states,
         layerId = states@data$name,
-        fillColor = ~ colorBin(
-          palette = if (is_empty(degree()) == T) {
-            "PiYG"
-          } else {
-            if (nchar(degree()) == 10) {
+        fillColor = ~ if (is_empty(degree())) {
+          colorBin(
+            palette = "BrBG",
+            domain = c(50, 100),
+            bins = binsHS,
+            na.color = "black"
+          )(states@data[, "OverallHighSchool"])
+        }
+        else {
+          colorBin(
+            palette = if (is_empty(degree()) == T) {
               "BrBG"
-            }
-            else{
-              "PiYG"
-            }
-          },
-          domain = if (is_empty(degree()) == T) {
-            c(0, 100)
-          } else {
-            if (nchar(degree()) == 10) {
-              c(0, 75)
-            }
-            else{
+            } else {
+              if (nchar(degree()) == 10) {
+                "BrBG"
+              }
+              else{
+                "PiYG"
+              }
+            },
+            domain = if (is_empty(degree()) == T) {
               c(50, 100)
-            }
-          },
-          bins = if (is_empty(degree()) == T) {
-            c(0, 10, 20, 30, 40, 50, 60, 70, 80)
-          } else {
-            if (nchar(degree()) == 10) {
-              c(55, 60, 65, 70, 75, 80, 85, 90, 95, 100)
-            }
-            else{
-              c(0, 10, 20, 30, 40, 50, 60, 70, 80)
-            }
-          },
-          
-          na.color = "black"
-        )(states@data[, paste0(race(), degree())]),
+            } else {
+              if (nchar(degree()) == 10) {
+                c(0, 75)
+              }
+              else{
+                c(50, 100)
+              }
+            },
+            bins = if (is_empty(degree()) == T) {
+              binsHS
+            } else {
+              if (nchar(degree()) == 10) {
+                binsHS
+              }
+              else{
+                binsBach
+              }
+            },
+            
+            na.color = "black"
+          )(states@data[, paste0(race(), degree())])
+        }
+        
+        ,
         weight = 2,
         opacity = 1,
         color = "black",
@@ -437,7 +472,7 @@ server <- function(input, output) {
       addLegend(
         colorBin(
           palette = if (is_empty(degree()) == T) {
-            "PiYG"
+            "BrBG"
           } else {
             if (nchar(degree()) == 10) {
               "BrBG"
@@ -447,7 +482,7 @@ server <- function(input, output) {
             }
           },
           domain = if (is_empty(degree()) == T) {
-            c(0, 100)
+            c(50, 100)
           } else {
             if (nchar(degree()) == 10) {
               c(0, 75)
@@ -457,13 +492,13 @@ server <- function(input, output) {
             }
           },
           bins = if (is_empty(degree()) == T) {
-            c(0, 10, 20, 30, 40, 50, 60, 70, 80)
+            binsHS
           } else {
             if (nchar(degree()) == 10) {
-              c(55, 60, 65, 70, 75, 80, 85, 90, 95, 100)
+              binsHS
             }
             else{
-              c(0, 10, 20, 30, 40, 50, 60, 70, 80)
+              binsBach
             }
           },
           na.color = "black"
@@ -506,7 +541,7 @@ server <- function(input, output) {
         summarise(pct = Percent)
     }
     else {
-      dataForBarplot %>% filter(State == "Kansas") %>%
+      dataForBarplot %>% filter(State == "New York") %>%
         group_by(Race, Degree) %>%
         summarise(pct = Percent, se = StdError)
     }
@@ -543,12 +578,13 @@ server <- function(input, output) {
       labs(
         title = paste0(
           "How Does Your Selected State, ",
-          ifelse(is.null(selectedState()) == T, "Kansas", selectedState()),
+          ifelse(is.null(selectedState()) == T, "New York", selectedState()),
           ", Stack Up?"
         ),
         x = "Percent of Students Graduating",
         y = "State Percentile",
-        subtitle = "These plots present a state's raw graduation rate for each statistic on the x-axis and its percentile rank on the y-axis. Use the interactive map to select a new state."
+        subtitle = "These plots present a state's raw graduation rate for each statistic on the x-axis and its percentile rank on the y-axis. Use the interactive map to select a new state.\nThey allow for comparison within a state. For example, why might New York rank below the 25th percentile for high school degree rates but above the 75th percentile for college rates?",
+        caption = "The data used for this visualization were originally collected in the U.S. Census Bureau's American Community Survey in 2019.\nThey were compiled for publication by the National Center for Education Statistics in 2021."
       ) +
       theme(
         legend.position = "none",
