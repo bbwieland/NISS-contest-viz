@@ -250,7 +250,7 @@ server <- function(input, output) {
     paste(
       "<style> h4 {text-align: left; padding-left: 4%; font-size: 36px; font-weight: bold;} </style>",
       "<style> h3 {text-align: left; padding-left: 4%; padding-bottom: 2%; font-size: 24px; font-weight: normal;} </style>",
-      "<h4> Graduation Rates by State, Race, and Degree Type </h4>",
+      "<h4><font size = '+12'>Exploring the Graduation Gap:</font><br> Which regions and groups still suffer from educational inequities?</h4>",
       "<h3>In 2021, the National Center for Education Statistics published data on nationwide high school and college graduation rates. <br>This information can be useful in examining educational disparities across regional and demographic boundaries. </h3>"
     )
   })
